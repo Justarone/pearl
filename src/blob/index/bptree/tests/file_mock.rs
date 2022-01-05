@@ -4,8 +4,6 @@ use lazy_static::lazy_static;
 use std::collections::BTreeMap;
 use std::sync::RwLock;
 
-type RealFile = crate::blob::File;
-
 type GlobalFileStorage = Arc<RwLock<BTreeMap<String, File>>>;
 
 lazy_static! {
@@ -15,14 +13,12 @@ lazy_static! {
 
 #[derive(Debug, Clone)]
 pub struct File {
-    rf: RealFile,
     inner: Arc<RwLock<FileImpl>>,
 }
 
 impl File {
-    async fn new(path: PathBuf) -> Self {
+    async fn new() -> Self {
         Self {
-            rf: RealFile::open(path, None).await.unwrap(),
             inner: Arc::new(RwLock::new(FileImpl::new())),
         }
     }
@@ -53,64 +49,38 @@ impl FileTrait for File {
             .as_ref()
             .to_str()
             .ok_or(IOError::from_raw_os_error(15))?;
-        let file = Self::new(path.as_ref().to_owned()).await;
+        let file = Self::new().await;
         let mut storage_lock = SINGLETON_IN_MEMORY_STORAGE.write().unwrap();
         storage_lock.insert(str_path.to_owned(), file.clone());
         Ok(file)
     }
 
     fn size(&self) -> u64 {
-        let res = self.inner.read().unwrap().size();
-        assert_eq!(res, self.rf.size());
-        res
+        self.inner.read().unwrap().size()
     }
 
     async fn write_append(&self, buf: &[u8]) -> IOResult<usize> {
-        let res = self.inner.write().unwrap().write_append(buf).unwrap();
-        assert_eq!(res, self.rf.write_append(buf).await.unwrap());
-        Ok(res)
+        self.inner.write().unwrap().write_append(buf)
     }
 
     async fn write_append_sync(&self, buf: &[u8]) -> IOResult<usize> {
-        let res = self.inner.write().unwrap().write_append(buf).unwrap();
-        assert_eq!(res, self.rf.write_append_sync(buf).await.unwrap());
-        Ok(res)
+        self.inner.write().unwrap().write_append(buf)
     }
 
     async fn write_at(&self, offset: u64, buf: &[u8]) -> IOResult<usize> {
-        let res = self.inner.write().unwrap().write_at(buf, offset).unwrap();
-        assert_eq!(res, self.rf.write_at(offset, buf).await.unwrap());
-        Ok(res)
+        self.inner.write().unwrap().write_at(buf, offset)
     }
 
     async fn read_all(&self) -> Result<Vec<u8>> {
-        let res = self.inner.read().unwrap().read_all()?;
-        let res2 = self.rf.read_all().await?;
-        for i in 0..res.len() {
-            if res[i] != res2[i] {
-                panic!(
-                    "Difference (i = {}): {:?} vs {:?}",
-                    i,
-                    &res[(i - 64)..(i + 64)],
-                    &res2[(i - 64)..(i + 64)]
-                )
-            }
-        }
-        Ok(res)
+        self.inner.read().unwrap().read_all()
     }
 
     async fn read_at(&self, buf: &mut [u8], offset: u64) -> Result<usize> {
-        let mut another_buf = vec![0; buf.len()];
-        let res = self.inner.read().unwrap().read_at(buf, offset)?;
-        assert_eq!(res, self.rf.read_at(&mut another_buf, offset).await?);
-        assert!(buf == another_buf);
-        Ok(res)
+        self.inner.read().unwrap().read_at(buf, offset)
     }
 
     async fn read_at_sync(&self, buf: &mut [u8], offset: u64) -> Result<usize> {
-        let res = self.inner.read().unwrap().read_at(buf, offset)?;
-        assert_eq!(res, self.rf.read_at_sync(buf, offset).await?);
-        Ok(res)
+        self.inner.read().unwrap().read_at(buf, offset)
     }
 
     async fn fsyncdata(&self) -> IOResult<()> {
