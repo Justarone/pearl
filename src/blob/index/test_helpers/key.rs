@@ -1,7 +1,7 @@
 use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) struct KeyType(Vec<u8>);
+pub(crate) struct KeyType(Vec<u8>);
 
 impl Key for KeyType {
     const LEN: u16 = 8;

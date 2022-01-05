@@ -12,7 +12,7 @@ lazy_static! {
 }
 
 #[derive(Debug, Clone)]
-pub struct File {
+pub(crate) struct File {
     inner: Arc<RwLock<FileImpl>>,
 }
 
@@ -136,87 +136,92 @@ impl FileImpl {
     }
 }
 
-struct FileImplMockBuilder {
-    data: Vec<u8>,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-impl FileImplMockBuilder {
-    fn new() -> Self {
-        Self { data: Vec::new() }
+    struct FileImplMockBuilder {
+        data: Vec<u8>,
     }
 
-    fn with_data(mut self, buf: Vec<u8>) -> Self {
-        self.data = buf;
-        self
+    impl FileImplMockBuilder {
+        fn new() -> Self {
+            Self { data: Vec::new() }
+        }
+
+        fn with_data(mut self, buf: Vec<u8>) -> Self {
+            self.data = buf;
+            self
+        }
+
+        fn build(self) -> FileImpl {
+            let mut fi = FileImpl::new();
+            fi.set_data(self.data);
+            fi
+        }
     }
 
-    fn build(self) -> FileImpl {
-        let mut fi = FileImpl::new();
-        fi.set_data(self.data);
-        fi
+    #[test]
+    fn file_mock_test_write_append() {
+        let mut file = FileImplMockBuilder::new().build();
+
+        file.write_append("hello".as_bytes()).unwrap();
+
+        assert_eq!(file.data, "hello".as_bytes());
     }
-}
 
-#[test]
-fn file_mock_test_write_append() {
-    let mut file = FileImplMockBuilder::new().build();
+    #[test]
+    fn file_mock_test_write_at() {
+        let mut file = FileImplMockBuilder::new()
+            .with_data("hello".as_bytes().to_owned())
+            .build();
 
-    file.write_append("hello".as_bytes()).unwrap();
+        file.write_at("hello".as_bytes(), 2).unwrap();
 
-    assert_eq!(file.data, "hello".as_bytes());
-}
+        assert_eq!(file.data, "hehello".as_bytes());
+    }
 
-#[test]
-fn file_mock_test_write_at() {
-    let mut file = FileImplMockBuilder::new()
-        .with_data("hello".as_bytes().to_owned())
-        .build();
+    #[test]
+    fn file_mock_test_write_at_empty() {
+        let mut file = FileImplMockBuilder::new().build();
 
-    file.write_at("hello".as_bytes(), 2).unwrap();
+        file.write_at("hello".as_bytes(), 0).unwrap();
 
-    assert_eq!(file.data, "hehello".as_bytes());
-}
+        assert_eq!(file.data, "hello".as_bytes());
+    }
 
-#[test]
-fn file_mock_test_write_at_empty() {
-    let mut file = FileImplMockBuilder::new().build();
+    #[test]
+    fn file_mock_test_read_all() {
+        let file = FileImplMockBuilder::new()
+            .with_data("hello".as_bytes().to_owned())
+            .build();
 
-    file.write_at("hello".as_bytes(), 0).unwrap();
+        let data = file.read_all().unwrap();
 
-    assert_eq!(file.data, "hello".as_bytes());
-}
+        assert_eq!(data, "hello".as_bytes());
+    }
 
-#[test]
-fn file_mock_test_read_all() {
-    let file = FileImplMockBuilder::new()
-        .with_data("hello".as_bytes().to_owned())
-        .build();
+    #[test]
+    fn file_mock_test_read_at() {
+        let file = FileImplMockBuilder::new()
+            .with_data("hello".as_bytes().to_owned())
+            .build();
 
-    let data = file.read_all().unwrap();
+        let mut data = [0; 3];
+        file.read_at(&mut data, 1).unwrap();
 
-    assert_eq!(data, "hello".as_bytes());
-}
+        assert_eq!(data, "ell".as_bytes());
+    }
 
-#[test]
-fn file_mock_test_read_at() {
-    let file = FileImplMockBuilder::new()
-        .with_data("hello".as_bytes().to_owned())
-        .build();
+    #[test]
+    fn file_mock_test_read_at_end() {
+        let file = FileImplMockBuilder::new()
+            .with_data("hello".as_bytes().to_owned())
+            .build();
 
-    let mut data = [0; 3];
-    file.read_at(&mut data, 1).unwrap();
+        let mut data = [0; 3];
+        file.read_at(&mut data, 3).unwrap();
 
-    assert_eq!(data, "ell".as_bytes());
-}
-
-#[test]
-fn file_mock_test_read_at_end() {
-    let file = FileImplMockBuilder::new()
-        .with_data("hello".as_bytes().to_owned())
-        .build();
-
-    let mut data = [0; 3];
-    file.read_at(&mut data, 3).unwrap();
-
-    assert_eq!(data, ['l' as u8, 'o' as u8, 0]);
+        assert_eq!(data, ['l' as u8, 'o' as u8, 0]);
+    }
 }

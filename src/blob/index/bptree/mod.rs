@@ -4,8 +4,6 @@ mod core;
 mod meta;
 mod node;
 mod serializer;
-#[cfg(test)]
-mod tests;
 
 pub(crate) use self::core::BPTreeFileIndex;
 

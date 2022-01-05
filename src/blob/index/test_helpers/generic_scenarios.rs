@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) async fn check_deserialize_generic<FIndex: FileIndexTrait<KeyType>>() {
+pub(crate) async fn check_deserialize_generic<FIndex: FileIndexTrait<KeyType>>() {
     // arange
     let inmem = InMemoryIndexBuilder::new()
         .with_from(0)
@@ -22,7 +22,7 @@ pub(super) async fn check_deserialize_generic<FIndex: FileIndexTrait<KeyType>>()
     assert_eq!(inmem, inmem_after);
 }
 
-pub(super) async fn check_get_any_first_generic<FIndex: FileIndexTrait<KeyType>>() {
+pub(crate) async fn check_get_any_first_generic<FIndex: FileIndexTrait<KeyType>>() {
     // arange
     let file = "/tmp/check_get_any_first_generic.test";
     let findex = FindexMother::create_with_step_and_offset::<FIndex, 31, 100>(100, file).await;
@@ -34,7 +34,7 @@ pub(super) async fn check_get_any_first_generic<FIndex: FileIndexTrait<KeyType>>
     assert_eq!(res, Some(exp_res));
 }
 
-pub(super) async fn check_get_any_last_generic<FIndex: FileIndexTrait<KeyType>>() {
+pub(crate) async fn check_get_any_last_generic<FIndex: FileIndexTrait<KeyType>>() {
     // arange
     let file = "/tmp/check_get_any_last_generic.test";
     let findex = FindexMother::create_with_step_and_offset::<FIndex, 31, 100>(100, file).await;
@@ -46,7 +46,7 @@ pub(super) async fn check_get_any_last_generic<FIndex: FileIndexTrait<KeyType>>(
     assert_eq!(res, Some(exp_res));
 }
 
-pub(super) async fn check_get_any_ordinary_generic<FIndex: FileIndexTrait<KeyType>>() {
+pub(crate) async fn check_get_any_ordinary_generic<FIndex: FileIndexTrait<KeyType>>() {
     // arange
     let file = "/tmp/check_get_any_ordinary_generic.test";
     let findex = FindexMother::create_with_step_and_offset::<FIndex, 31, 100>(100, file).await;
@@ -59,7 +59,7 @@ pub(super) async fn check_get_any_ordinary_generic<FIndex: FileIndexTrait<KeyTyp
     assert_eq!(res, Some(exp_res));
 }
 
-pub(super) async fn check_get_any_absent_generic<FIndex: FileIndexTrait<KeyType>>() {
+pub(crate) async fn check_get_any_absent_generic<FIndex: FileIndexTrait<KeyType>>() {
     // arange
     let file = "/tmp/check_get_any_absent_generic.test";
     let findex = FindexMother::create_with_step_and_offset::<FIndex, 31, 100>(100, file).await;
@@ -71,7 +71,7 @@ pub(super) async fn check_get_any_absent_generic<FIndex: FileIndexTrait<KeyType>
     assert_eq!(res, None);
 }
 
-pub(super) async fn check_get_all_first_generic<FIndex: FileIndexTrait<KeyType>>() {
+pub(crate) async fn check_get_all_first_generic<FIndex: FileIndexTrait<KeyType>>() {
     // arange
     let file = "/tmp/check_get_all_first_generic.test";
     let findex = FindexMother::create_with_reps::<FIndex, 7>(100, file).await;
@@ -84,7 +84,7 @@ pub(super) async fn check_get_all_first_generic<FIndex: FileIndexTrait<KeyType>>
     assert_eq!(res, Some(exp_res));
 }
 
-pub(super) async fn check_get_all_last_generic<FIndex: FileIndexTrait<KeyType>>() {
+pub(crate) async fn check_get_all_last_generic<FIndex: FileIndexTrait<KeyType>>() {
     // arange
     let file = "/tmp/check_get_all_last_generic.test";
     let findex = FindexMother::create_with_reps::<FIndex, 7>(100, file).await;
@@ -97,7 +97,7 @@ pub(super) async fn check_get_all_last_generic<FIndex: FileIndexTrait<KeyType>>(
     assert_eq!(res, Some(exp_res));
 }
 
-pub(super) async fn check_get_all_ordinary_generic<FIndex: FileIndexTrait<KeyType>>() {
+pub(crate) async fn check_get_all_ordinary_generic<FIndex: FileIndexTrait<KeyType>>() {
     // arange
     let file = "/tmp/check_get_all_ordinary_generic.test";
     let findex = FindexMother::create_with_reps::<FIndex, 7>(100, file).await;
@@ -110,7 +110,7 @@ pub(super) async fn check_get_all_ordinary_generic<FIndex: FileIndexTrait<KeyTyp
     assert_eq!(res, Some(exp_res));
 }
 
-pub(super) async fn check_get_all_absent_generic<FIndex: FileIndexTrait<KeyType>>() {
+pub(crate) async fn check_get_all_absent_generic<FIndex: FileIndexTrait<KeyType>>() {
     // arange
     let file = "/tmp/check_get_all_absent_generic.test";
     let findex = FindexMother::create_with_reps::<FIndex, 7>(100, file).await;

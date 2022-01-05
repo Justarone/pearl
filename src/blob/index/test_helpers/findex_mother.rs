@@ -1,13 +1,13 @@
 use super::*;
 
-pub(super) struct FindexMother {}
+pub(crate) struct FindexMother {}
 
 const SLEEP_TIME_MS: u64 = 100;
 
 impl FindexMother {
     #[allow(dead_code)]
     // [0, 1, 2, 3, 4, ..., 99]
-    pub(super) async fn create_default<FileIndexType: FileIndexTrait<KeyType>>(
+    pub(crate) async fn create_default<FileIndexType: FileIndexTrait<KeyType>>(
         file: &str,
     ) -> FileIndexType {
         let findex = FileIndexBuilder::new()
@@ -19,7 +19,7 @@ impl FindexMother {
     }
 
     // [0, 0, ...[REPS_AMOUNT times]..., 0, 1, 1, ..., (unique_amount - 1)]
-    pub(super) async fn create_with_reps<
+    pub(crate) async fn create_with_reps<
         FileIndexType: FileIndexTrait<KeyType>,
         const REPS_AMOUNT: usize,
     >(
@@ -41,7 +41,7 @@ impl FindexMother {
     }
 
     // [offset, step + offset, step + 2 * offset, ..., step + (amount - 1) * offset]
-    pub(super) async fn create_with_step_and_offset<
+    pub(crate) async fn create_with_step_and_offset<
         FileIndexType: FileIndexTrait<KeyType>,
         const OFFSET: usize,
         const STEP: usize,

@@ -1,13 +1,13 @@
 use super::*;
 
-pub(super) struct InMemoryIndexBuilder {
+pub(crate) struct InMemoryIndexBuilder {
     from: usize,
     to: usize,
     index_to_key_fn: fn(usize) -> KeyType,
 }
 
 impl InMemoryIndexBuilder {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             from: 0,
             to: 100,
@@ -15,22 +15,22 @@ impl InMemoryIndexBuilder {
         }
     }
 
-    pub(super) fn with_from(mut self, from: usize) -> Self {
+    pub(crate) fn with_from(mut self, from: usize) -> Self {
         self.from = from;
         self
     }
 
-    pub(super) fn with_to(mut self, to: usize) -> Self {
+    pub(crate) fn with_to(mut self, to: usize) -> Self {
         self.to = to;
         self
     }
 
-    pub(super) fn with_index_to_key_fn(mut self, f: fn(usize) -> KeyType) -> Self {
+    pub(crate) fn with_index_to_key_fn(mut self, f: fn(usize) -> KeyType) -> Self {
         self.index_to_key_fn = f;
         self
     }
 
-    pub(super) fn build(self) -> InMemoryIndex<KeyType> {
+    pub(crate) fn build(self) -> InMemoryIndex<KeyType> {
         let mut inmem = InMemoryIndex::<KeyType>::new();
         (self.from..self.to)
             .map(self.index_to_key_fn)
