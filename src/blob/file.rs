@@ -4,12 +4,38 @@ use nix::{errno::Errno, fcntl::FcntlArg};
 
 use super::prelude::*;
 
+#[async_trait::async_trait]
+pub(crate) trait FileTrait {
+    async fn open<TPath: AsRef<Path> + Send + Sync>(
+        path: TPath,
+        ioring: Option<Rio>,
+    ) -> IOResult<Self>
+    where
+        Self: Sized;
+    async fn create<TPath: AsRef<Path> + Send + Sync>(
+        path: TPath,
+        ioring: Option<Rio>,
+    ) -> IOResult<Self>
+    where
+        Self: Sized;
+    async fn write_append(&self, buf: &[u8]) -> IOResult<usize>;
+    fn size(&self) -> u64;
+    async fn write_append_sync(&self, buf: &[u8]) -> IOResult<usize>;
+    async fn write_at(&self, offset: u64, buf: &[u8]) -> IOResult<usize>;
+    async fn read_all(&self) -> Result<Vec<u8>>;
+    async fn read_at(&self, buf: &mut [u8], offset: u64) -> Result<usize>;
+    async fn read_at_sync(&self, buf: &mut [u8], offset: u64) -> Result<usize>;
+    async fn fsyncdata(&self) -> IOResult<()>;
+}
+
 #[derive(Debug, Clone)]
 pub struct File {
     ioring: Option<Rio>,
     no_lock_fd: Arc<StdFile>, // requires only for read_at/write_at methods
     size: Arc<AtomicU64>,
 }
+
+unsafe impl Send for File {}
 
 #[derive(PartialEq, Eq)]
 enum LockAcquisitionResult {
@@ -18,15 +44,91 @@ enum LockAcquisitionResult {
     Error(Errno),
 }
 
-impl File {
-    pub(crate) async fn open(path: impl AsRef<Path>, ioring: Option<Rio>) -> IOResult<Self> {
-        Self::from_file(path, |f| f.create(false).append(true).read(true), ioring).await
+#[async_trait::async_trait]
+impl FileTrait for File {
+    async fn open<TPath: AsRef<Path> + Send + Sync>(
+        path: TPath,
+        ioring: Option<Rio>,
+    ) -> IOResult<Self> {
+        Self::from_file(
+            path.as_ref(),
+            |f| f.create(false).append(true).read(true),
+            ioring,
+        )
+        .await
     }
 
-    pub(crate) async fn create(path: impl AsRef<Path>, ioring: Option<Rio>) -> IOResult<Self> {
+    async fn create<TPath: AsRef<Path> + Send + Sync>(
+        path: TPath,
+        ioring: Option<Rio>,
+    ) -> IOResult<Self> {
         Self::from_file(path, |f| f.create(true).write(true).read(true), ioring).await
     }
 
+    fn size(&self) -> u64 {
+        self.size.load(ORD)
+    }
+
+    async fn write_append(&self, buf: &[u8]) -> IOResult<usize> {
+        if let Some(ref ioring) = self.ioring {
+            self.write_append_aio(buf, ioring).await
+        } else {
+            self.write_append_sync(buf).await
+        }
+    }
+
+    async fn write_append_sync(&self, buf: &[u8]) -> IOResult<usize> {
+        let offset = self.size.fetch_add(buf.len() as u64, Ordering::SeqCst);
+        self.write_at_sync(offset, buf).await
+    }
+
+    async fn write_at(&self, offset: u64, buf: &[u8]) -> IOResult<usize> {
+        if let Some(ref ioring) = self.ioring {
+            self.write_at_aio(offset, buf, ioring).await
+        } else {
+            self.write_at_sync(offset, buf).await
+        }
+    }
+
+    async fn read_all(&self) -> Result<Vec<u8>> {
+        let mut buf = vec![0; self.size().try_into()?];
+        self.read_at(&mut buf, 0).await?; // TODO: verify read size
+        Ok(buf)
+    }
+
+    async fn read_at(&self, buf: &mut [u8], offset: u64) -> Result<usize> {
+        if let Some(ref ioring) = self.ioring {
+            self.read_at_aio(buf, offset, ioring).await
+        } else {
+            self.read_at_sync(buf, offset).await
+        }
+    }
+
+    async fn read_at_sync(&self, buf: &mut [u8], offset: u64) -> Result<usize> {
+        let file = self.no_lock_fd.clone();
+        let mut new_buf = buf.to_vec();
+
+        let (count, new_buf) = Self::blocking_call(move || {
+            file.read_at(&mut new_buf, offset)
+                .map(|count| (count, new_buf))
+        })
+        .await?;
+        buf.clone_from_slice(new_buf.as_slice());
+        Ok(count)
+    }
+
+    async fn fsyncdata(&self) -> IOResult<()> {
+        if let Some(ref ioring) = self.ioring {
+            let compl = ioring.fsync(&*self.no_lock_fd);
+            compl.await
+        } else {
+            let fd = self.no_lock_fd.clone();
+            Self::blocking_call(move || fd.sync_all()).await
+        }
+    }
+}
+
+impl File {
     async fn from_file(
         path: impl AsRef<Path>,
         setup: impl Fn(&mut OpenOptions) -> &mut OpenOptions,
@@ -43,34 +145,9 @@ impl File {
         Self::from_tokio_file(file, ioring).await
     }
 
-    pub fn size(&self) -> u64 {
-        self.size.load(ORD)
-    }
-
-    pub(crate) async fn write_append(&self, buf: &[u8]) -> IOResult<usize> {
-        if let Some(ref ioring) = self.ioring {
-            self.write_append_aio(buf, ioring).await
-        } else {
-            self.write_append_sync(buf).await
-        }
-    }
-
-    pub(crate) async fn write_append_sync(&self, buf: &[u8]) -> IOResult<usize> {
-        let offset = self.size.fetch_add(buf.len() as u64, Ordering::SeqCst);
-        self.write_at_sync(offset, buf).await
-    }
-
     async fn write_append_aio(&self, buf: &[u8], ioring: &Rio) -> IOResult<usize> {
         let offset = self.size.fetch_add(buf.len() as u64, Ordering::SeqCst);
         self.write_at_aio(offset, buf, ioring).await
-    }
-
-    pub(crate) async fn write_at(&self, offset: u64, buf: &[u8]) -> IOResult<usize> {
-        if let Some(ref ioring) = self.ioring {
-            self.write_at_aio(offset, buf, ioring).await
-        } else {
-            self.write_at_sync(offset, buf).await
-        }
     }
 
     async fn write_at_aio(&self, offset: u64, buf: &[u8], ioring: &Rio) -> IOResult<usize> {
@@ -91,33 +168,6 @@ impl File {
         let buf = buf.to_vec();
         let file = self.no_lock_fd.clone();
         Self::blocking_call(move || file.write_at(&buf, offset)).await
-    }
-
-    pub(crate) async fn read_all(&self) -> Result<Vec<u8>> {
-        let mut buf = vec![0; self.size().try_into()?];
-        self.read_at(&mut buf, 0).await?; // TODO: verify read size
-        Ok(buf)
-    }
-
-    pub(crate) async fn read_at(&self, buf: &mut [u8], offset: u64) -> Result<usize> {
-        if let Some(ref ioring) = self.ioring {
-            self.read_at_aio(buf, offset, ioring).await
-        } else {
-            self.read_at_sync(buf, offset).await
-        }
-    }
-
-    pub(crate) async fn read_at_sync(&self, buf: &mut [u8], offset: u64) -> Result<usize> {
-        let file = self.no_lock_fd.clone();
-        let mut new_buf = buf.to_vec();
-
-        let (count, new_buf) = Self::blocking_call(move || {
-            file.read_at(&mut new_buf, offset)
-                .map(|count| (count, new_buf))
-        })
-        .await?;
-        buf.clone_from_slice(new_buf.as_slice());
-        Ok(count)
     }
 
     async fn read_at_aio(&self, buf: &mut [u8], offset: u64, ioring: &Rio) -> Result<usize> {
@@ -170,17 +220,6 @@ impl File {
         };
         Ok(file)
     }
-
-    pub(crate) async fn fsyncdata(&self) -> IOResult<()> {
-        if let Some(ref ioring) = self.ioring {
-            let compl = ioring.fsync(&*self.no_lock_fd);
-            compl.await
-        } else {
-            let fd = self.no_lock_fd.clone();
-            Self::blocking_call(move || fd.sync_all()).await
-        }
-    }
-
     fn advisory_write_lock_file(fd: i32) -> LockAcquisitionResult {
         let flock = libc::flock {
             l_len: 0, // 0 means "whole file"

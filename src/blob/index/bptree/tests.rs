@@ -3,6 +3,9 @@ use super::prelude::*;
 const META_SIZE: usize = 100;
 const META_VALUE: u8 = 17;
 
+mod file_mock;
+mod units;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct KeyType(Vec<u8>);
 
