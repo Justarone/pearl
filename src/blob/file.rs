@@ -220,6 +220,7 @@ impl File {
         };
         Ok(file)
     }
+
     fn advisory_write_lock_file(fd: i32) -> LockAcquisitionResult {
         let flock = libc::flock {
             l_len: 0, // 0 means "whole file"

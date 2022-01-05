@@ -29,7 +29,7 @@ impl Default for KeyType {
     }
 }
 
-type FileIndexStruct = BPTreeFileIndex<KeyType>;
+type FileIndexStruct = BPTreeFileIndex<KeyType, File>;
 //type FileIndexStruct = SimpleFileIndex;
 
 fn generate_headers(records_amount: usize, key_mapper: fn(u32) -> u32) -> InMemoryIndex<KeyType> {

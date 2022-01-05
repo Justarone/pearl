@@ -49,12 +49,12 @@ impl Into<usize> for KeyType {
 #[tokio::test]
 async fn serialize_deserialize_file() {
     let mut inmem = InMemoryIndex::<KeyType>::new();
-    (0..10000).map(|i| i.into()).for_each(|key: KeyType| {
+    (0..10).map(|i| i.into()).for_each(|key: KeyType| {
         let rh = RecordHeader::new(key.to_vec(), 1, 1, 1);
         inmem.insert(key, vec![rh]);
     });
     let meta = vec![META_VALUE; META_SIZE];
-    let findex = BPTreeFileIndex::<KeyType>::from_records(
+    let findex = BPTreeFileIndex::<KeyType, file_mock::File>::from_records(
         &Path::new("/tmp/bptree_index.b"),
         None,
         &inmem,
@@ -83,7 +83,7 @@ async fn check_get_any() {
             inmem.insert(key, vec![rh]);
         });
     let meta = vec![META_VALUE; META_SIZE];
-    let findex = BPTreeFileIndex::<KeyType>::from_records(
+    let findex = BPTreeFileIndex::<KeyType, file_mock::File>::from_records(
         &Path::new("/tmp/any_bptree_index.b"),
         None,
         &inmem,
@@ -132,7 +132,7 @@ async fn check_get() {
             inmem.insert(key, recs);
         });
     let meta = vec![META_VALUE; META_SIZE];
-    let findex = BPTreeFileIndex::<KeyType>::from_records(
+    let findex = BPTreeFileIndex::<KeyType, file_mock::File>::from_records(
         &Path::new("/tmp/all_bptree_index.b"),
         None,
         &inmem,

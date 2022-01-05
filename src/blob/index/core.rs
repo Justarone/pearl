@@ -2,7 +2,7 @@ use super::prelude::*;
 use crate::filter::BloomDataProvider;
 use std::mem::size_of;
 
-pub(crate) type Index<K> = IndexStruct<BPTreeFileIndex<K>, K>;
+pub(crate) type Index<K> = IndexStruct<BPTreeFileIndex<K, File>, K>;
 
 pub(crate) const HEADER_VERSION: u8 = 4;
 

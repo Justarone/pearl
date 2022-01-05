@@ -14,8 +14,8 @@ use super::prelude::*;
 pub(super) const BLOCK_SIZE: usize = 4096;
 
 #[derive(Debug, Clone)]
-pub(crate) struct BPTreeFileIndex<K> {
-    file: File,
+pub(crate) struct BPTreeFileIndex<K, FileType: FileTrait + Sync + Send> {
+    file: FileType,
     header: IndexHeader,
     metadata: TreeMeta,
     root_node: [u8; BLOCK_SIZE],
@@ -23,10 +23,12 @@ pub(crate) struct BPTreeFileIndex<K> {
 }
 
 #[async_trait::async_trait]
-impl<K: Key + 'static> FileIndexTrait<K> for BPTreeFileIndex<K> {
+impl<K: Key + 'static, FileType: FileTrait + Sync + Send> FileIndexTrait<K>
+    for BPTreeFileIndex<K, FileType>
+{
     async fn from_file(name: FileName, ioring: Option<Rio>) -> Result<Self> {
         trace!("open index file");
-        let file = File::open(name.to_path(), ioring)
+        let file = FileType::open(name.to_path(), ioring)
             .await
             .context(format!("failed to open index file: {}", name))?;
         let header = Self::read_index_header(&file).await?;
@@ -52,7 +54,7 @@ impl<K: Key + 'static> FileIndexTrait<K> for BPTreeFileIndex<K> {
         clean_file(path, recreate_index_file)?;
         let res = Self::serialize(headers, meta)?;
         let (mut header, metadata, buf) = res;
-        let file = File::create(path, ioring)
+        let file = FileType::create(path, ioring)
             .await
             .with_context(|| format!("file open failed {:?}", path))?;
         file.write_append(&buf).await?;
@@ -151,7 +153,7 @@ impl<K: Key + 'static> FileIndexTrait<K> for BPTreeFileIndex<K> {
     }
 }
 
-impl<K: Key + 'static> BPTreeFileIndex<K> {
+impl<K: Key + 'static, FileType: FileTrait + Sync + Send> BPTreeFileIndex<K, FileType> {
     async fn find_leaf_node(&self, key: &K, mut offset: u64, buf: &mut [u8]) -> Result<u64> {
         while offset < self.metadata.leaves_offset {
             offset = if offset == self.metadata.tree_offset {
@@ -353,21 +355,21 @@ impl<K: Key + 'static> BPTreeFileIndex<K> {
         Ok(hash == new_hash)
     }
 
-    async fn read_index_header(file: &File) -> Result<IndexHeader> {
+    async fn read_index_header(file: &FileType) -> Result<IndexHeader> {
         let header_size = IndexHeader::serialized_size_default()? as usize;
         let mut buf = vec![0; header_size];
         file.read_at(&mut buf, 0).await?;
         IndexHeader::from_raw(&buf).map_err(Into::into)
     }
 
-    async fn read_root(file: &File, root_offset: u64) -> Result<[u8; BLOCK_SIZE]> {
+    async fn read_root(file: &FileType, root_offset: u64) -> Result<[u8; BLOCK_SIZE]> {
         let mut buf = [0; BLOCK_SIZE];
         let buf_size = std::cmp::min((file.size() - root_offset) as usize, BLOCK_SIZE);
         file.read_at(&mut buf[..buf_size], root_offset).await?;
         Ok(buf)
     }
 
-    async fn read_tree_meta(file: &File, header: &IndexHeader) -> Result<TreeMeta> {
+    async fn read_tree_meta(file: &FileType, header: &IndexHeader) -> Result<TreeMeta> {
         let meta_size = TreeMeta::serialized_size_default()? as usize;
         let mut buf = vec![0; meta_size];
         let fsize = header.meta_size as u64;
