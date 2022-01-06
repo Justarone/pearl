@@ -108,7 +108,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: integration::
+          args: "integration::"
 
   with_e2e:
     runs-on: ubuntu-latest
