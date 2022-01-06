@@ -220,7 +220,7 @@ impl<'a, K: Key> TreeStage<'a, K> {
         // operation: the latest written (the first after reverse) record will be retrieved from file
         headers_btree
             .iter()
-            .flat_map(|r| r.1.iter().rev())
+            .flat_map(|(_, hs)| hs.iter().rev())
             .map(|h| serialize(&h))
             .try_fold(buf, |buf, h_buf| -> Result<_> {
                 buf.extend_from_slice(&h_buf?);
