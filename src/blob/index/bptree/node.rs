@@ -41,7 +41,7 @@ impl Node {
     pub(super) fn binary_search_serialized<K: Key>(key: &K, buf: &[u8]) -> Result<usize, usize> {
         let key_size = K::LEN as usize;
         let mut l = 0i32;
-        let mut r: i32 = (buf.len() / key_size - 1) as i32;
+        let mut r: i32 = (buf.len() / key_size) as i32 - 1;
         while l <= r {
             let m = (l + r) / 2;
             let offset = m as usize * key_size;

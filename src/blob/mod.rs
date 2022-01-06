@@ -7,7 +7,7 @@ mod index;
 pub(crate) use self::core::BLOB_INDEX_FILE_EXTENSION;
 pub(crate) use self::core::{Blob, FileName};
 pub use self::entry::Entry;
-pub(crate) use self::file::File;
+pub(crate) use self::file::{File, FileTrait};
 pub(crate) use self::index::IndexConfig;
 pub(crate) use super::prelude::*;
 

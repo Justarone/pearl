@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use bincode::{deserialize, serialized_size};
 use rio::Rio;
 
-use crate::{blob::File, error::ValidationErrorKind, Error};
+use crate::{blob::File, blob::FileTrait, error::ValidationErrorKind, Error};
 
 use super::FileName;
 

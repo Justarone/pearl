@@ -3,16 +3,16 @@ use crate::error::ValidationErrorKind;
 use super::prelude::*;
 
 #[derive(Debug, Clone)]
-pub(crate) struct SimpleFileIndex {
-    file: File,
+pub(crate) struct SimpleFileIndex<FileType: FileTrait> {
+    file: FileType,
     header: IndexHeader,
 }
 
 #[async_trait::async_trait]
-impl<K: Key> FileIndexTrait<K> for SimpleFileIndex {
+impl<K: Key, FileType: FileTrait + Send + Sync> FileIndexTrait<K> for SimpleFileIndex<FileType> {
     async fn from_file(name: FileName, ioring: Option<Rio>) -> Result<Self> {
         trace!("open index file");
-        let file = File::open(name.to_path(), ioring)
+        let file = FileType::open(name.to_path(), ioring)
             .await
             .context(format!("failed to open index file: {}", name))?;
         let header = Self::read_index_header(&file).await?;
@@ -68,7 +68,7 @@ impl<K: Key> FileIndexTrait<K> for SimpleFileIndex {
         }
         let (mut header, buf) = res.expect("None case is checked");
         clean_file(path, recreate_index_file)?;
-        let file = File::create(path, ioring)
+        let file = FileType::create(path, ioring)
             .await
             .with_context(|| format!("file open failed {:?}", path))?;
         file.write_append(&buf).await?;
@@ -122,7 +122,7 @@ impl<K: Key> FileIndexTrait<K> for SimpleFileIndex {
 }
 
 // helpers
-impl SimpleFileIndex {
+impl<FileType: FileTrait + Send + Sync> SimpleFileIndex<FileType> {
     fn hash_valid(header: &IndexHeader, buf: &mut Vec<u8>) -> Result<bool> {
         let hash = header.hash.clone();
         let mut header = header.clone();
@@ -133,7 +133,7 @@ impl SimpleFileIndex {
         Ok(hash == new_hash)
     }
 
-    async fn read_index_header(file: &File) -> Result<IndexHeader> {
+    async fn read_index_header(file: &FileType) -> Result<IndexHeader> {
         let header_size = IndexHeader::serialized_size_default()? as usize;
         let mut buf = vec![0; header_size];
         file.read_at(&mut buf, 0).await?;
@@ -141,7 +141,7 @@ impl SimpleFileIndex {
     }
 
     async fn search_all<K: Key>(
-        file: &File,
+        file: &FileType,
         key: &K,
         index_header: &IndexHeader,
     ) -> Result<Option<Vec<RecordHeader>>> {
@@ -214,7 +214,7 @@ impl SimpleFileIndex {
     }
 
     async fn binary_search<K: Key>(
-        file: &File,
+        file: &FileType,
         key: &K,
         header: &IndexHeader,
     ) -> Result<Option<(RecordHeader, usize)>> {
@@ -304,7 +304,7 @@ impl SimpleFileIndex {
         }
     }
 
-    async fn read_at(file: &File, index: usize, header: &IndexHeader) -> Result<RecordHeader> {
+    async fn read_at(file: &FileType, index: usize, header: &IndexHeader) -> Result<RecordHeader> {
         debug!("blob index simple read at");
         let header_size = bincode::serialized_size(&header)?;
         debug!("blob index simple read at header size {}", header_size);

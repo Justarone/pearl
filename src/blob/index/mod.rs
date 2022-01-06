@@ -4,6 +4,10 @@ mod bptree;
 mod core;
 mod header;
 mod simple;
+#[cfg(test)]
+mod test_helpers;
+#[cfg(test)]
+mod tests;
 mod tools;
 
 #[cfg(test)]

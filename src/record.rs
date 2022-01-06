@@ -186,6 +186,11 @@ impl Header {
         }
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn set_created(&mut self, created: u64) {
+        self.created = created;
+    }
+
     #[inline]
     pub(crate) const fn data_size(&self) -> u64 {
         self.data_size

@@ -2,7 +2,7 @@ use super::prelude::*;
 use crate::filter::BloomDataProvider;
 use std::mem::size_of;
 
-pub(crate) type Index<K> = IndexStruct<BPTreeFileIndex<K>, K>;
+pub(crate) type Index<K> = IndexStruct<BPTreeFileIndex<K, File>, K>;
 
 pub(crate) const HEADER_VERSION: u8 = 4;
 
@@ -322,7 +322,7 @@ where
         match &self.inner {
             State::InMemory(headers) => {
                 debug!("index get any in memory headers: {}", headers.len());
-                Ok(headers.get(key).and_then(|h| h.first()).cloned())
+                Ok(headers.get(key).and_then(|h| h.last()).cloned())
             }
             State::OnDisk(findex) => {
                 debug!("index get any on disk");

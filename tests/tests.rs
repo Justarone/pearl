@@ -4,7 +4,7 @@ extern crate log;
 use anyhow::Result;
 use futures::{
     future::FutureExt,
-    stream::{futures_unordered::FuturesUnordered, StreamExt, TryStreamExt},
+    stream::{futures_unordered::FuturesUnordered, FuturesOrdered, StreamExt, TryStreamExt},
     TryFutureExt,
 };
 use pearl::{BloomProvider, Builder, Meta, Storage};
@@ -934,4 +934,83 @@ async fn test_blob_header_validation() {
     );
     assert!(is_correct);
     common::clean(storage, path).await.unwrap();
+}
+
+#[tokio::test]
+async fn test_e2e() -> Result<()> {
+    // arange
+    let path = common::init("e2e");
+    let max_blob_size = 1_000_000;
+    let records_amount = 30u32;
+    let on_disk_key = 0;
+    let half_disk_half_memory_key = records_amount / 2 / 2 + 1;
+    let in_memory_key = records_amount / 2 - 1;
+    let keys = [on_disk_key, half_disk_half_memory_key, in_memory_key];
+    let records = common::build_rep_data(500, &mut [17, 40, 29, 7, 75], records_amount as usize);
+
+    let mut storage = Builder::new()
+        .work_dir(&path)
+        .blob_file_name_prefix("test")
+        .max_blob_size(max_blob_size)
+        .allow_duplicates()
+        // records_amount / 2 + 2 - on disk, records_amount / 2 - 2 - in memory (17, 13)
+        .max_data_in_blob(records_amount as u64 / 2 + 2)
+        .build()?;
+
+    // act
+    let res = storage.init().await;
+
+    //assert
+    assert!(res.is_ok());
+
+    info!("write (0..{})", records_amount);
+    for i in 0..records_amount {
+        sleep(Duration::from_millis(100)).await;
+
+        // act
+        let res = write_one(&storage, i / 2, &records[i as usize], None).await;
+
+        // assert
+        assert!(res.is_ok());
+    }
+
+    // act
+    while storage.blobs_count().await < 2 {
+        sleep(Duration::from_millis(200)).await;
+    }
+
+    // assert
+    assert_eq!(
+        (storage.blobs_count().await, storage.records_count().await),
+        (2, 30)
+    );
+
+    for key in keys {
+        // act
+        let record = storage.read(KeyTest::new(key)).await;
+        // assert
+        assert_eq!(record?, records[key as usize * 2 + 1]);
+    }
+
+    for key in keys {
+        // act
+        let read_records = storage
+            .read_all(&KeyTest::new(key))
+            .and_then(|entries| {
+                entries
+                    .into_iter()
+                    .map(|e| e.load())
+                    .collect::<FuturesOrdered<_>>()
+                    .map(|e| e.map(|r| r.into_data()))
+                    .try_collect::<Vec<_>>()
+            })
+            .await;
+        // assert
+        assert!(common::cmp_records_collections(
+            read_records?,
+            &records[(key as usize * 2)..(key as usize * 2 + 2)]
+        ));
+    }
+
+    Ok(())
 }
